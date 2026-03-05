@@ -8,28 +8,34 @@ weight = 1
 
 **KEDA** is a tool that helps [Kubernetes](https://kubernetes.io) scale applications based on real-world events. It was created by Microsoft and Red Hat. With KEDA, you can adjust the size of your containers automatically, depending on the workload—like the number of messages in a queue or incoming requests.
 
-It’s lightweight and works alongside Kubernetes components like the Horizontal Pod Autoscaler (HPA). It doesn’t replace anything but adds more functionality. You can choose which apps to scale with KEDA while leaving others untouched. This makes it flexible and easy to integrate with your existing setup.
+It's lightweight and works alongside Kubernetes components like the Horizontal Pod Autoscaler (HPA). It doesn't replace anything but adds more functionality. You can choose which apps to scale with KEDA while leaving others untouched. This makes it flexible and easy to integrate with your existing setup.
 
 ## How KEDA works
 
-KEDA monitors external event sources and adjusts your app’s resources based on the demand. Its main components work together to make this possible:
+KEDA monitors external event sources, like message queues, databases, or API, and automatically adjusts the number of running pods based on real-time demand. When events arrive, KEDA scales your workload up to handle the load. When things go quiet, it scales back down, all the way to zero if needed.
 
-* **KEDA Operator** keeps track of event sources and changes the number of app instances up or down, depending on the demand.
-* **Metrics Server** provides external metrics to Kubernetes’ HPA so it can make scaling decisions.
-* **Scalers** connect to event sources like message queues or databases, pulling data on current usage or load.
-* **Custom Resource Definitions (CRDs)** define how your apps should scale based on triggers like queue length or API request rates.
+It does this by working alongside Kubernetes' existing Horizontal Pod Autoscaler rather than replacing it. KEDA feeds the HPA with external metrics, extending it beyond CPU and memory to any event source you can connect to. The result is an application that responds to actual workload rather than just infrastructure signals.
 
-In simple terms, KEDA listens to what’s happening outside Kubernetes, fetches the data it needs, and scales your apps accordingly. It’s efficient and integrates well with Kubernetes to handle scaling dynamically.
+For batch workloads, KEDA takes a different approach: instead of scaling a running deployment up or down, it creates new Kubernetes Jobs in response to events—for example, one job per message in a queue.
 
 ## KEDA Architecture
 
 The diagram below shows how KEDA works in conjunction with the Kubernetes Horizontal Pod Autoscaler, external event sources, and Kubernetes' [etcd](https://etcd.io) data store:
 
-![KEDA architecture](/img/keda-arch.png)
+![KEDA architecture](/img/keda-arch-new.png)
 
-External events, like an increase in queue messages, trigger the **ScaledObject**, which sets the scaling rules. The **Controller** handles the scaling, while the **Metrics Adapter** sends data to the HPA for real-time scaling decisions. **Admission Webhooks** ensure your configuration is correct and won’t cause problems.
+KEDA runs three components inside the Kubernetes cluster, each with a distinct responsibility:
 
-This setup lets Kubernetes adjust resources automatically based on what’s happening outside, keeping things efficient and responsive.
+* **keda-operator** watches your ScaledObjects and manages the full HPA lifecycle. It is also directly responsible for scaling a workload between zero and one replica—bringing an idle deployment back to life when events arrive, or scaling it down to zero when there is nothing to process.
+* **keda-metrics-apiserver** exposes the external metrics (polled from event sources such as Kafka, RabbitMQ, Elasticsearch, or SQS) to the Kubernetes HPA via the Kubernetes API Server. The HPA queries these metrics to decide how many replicas are needed above one.
+* **keda-admission-webhooks** validate every ScaledObject at the moment it is applied, catching configuration mistakes—such as two ScaledObjects targeting the same workload—before they cause problems at runtime.
+
+The scaling flow works in two complementary tracks:
+
+1. **Zero-to-one and one-to-zero scaling** is handled directly by the keda-operator. When an event source becomes active, the operator brings the deployment up from zero replicas; when it goes idle again, the operator scales it back down to zero.
+2. **One-to-N and N-to-one scaling** is delegated to the Horizontal Pod Autoscaler. The keda-operator creates and manages the HPA resource; the HPA queries external metrics through the Kubernetes API Server (served by the keda-metrics-apiserver), and adjusts the number of running pods accordingly.
+
+The Replica Set inside the Deployment translates the desired replica count set by both tracks into actual running pods.
 
 ## KEDA Custom Resources (CRDs)
 
