@@ -161,7 +161,7 @@ Allowed values are the names of the cipher suites returned by the Go `crypto/tls
 
 You can restrict which scaler trigger types the operator is willing to instantiate by passing the `--enabled-scalers` flag with a comma-separated allow-list. When the flag is not set, all built-in scalers remain enabled (the existing default).
 
-Configure the allow-list in **one** of the following ways, depending on how you install KEDA. You do not need to do both — the Helm value just renders the same `--enabled-scalers=…` argument on the operator Deployment.
+Configure the allow-list in **one** of the following ways, depending on how you install KEDA. You do not need to do both, the Helm value just renders the same `--enabled-scalers=…` argument on the operator Deployment.
 
 **Helm chart (recommended):** set `operator.enabledScalers` in your `values.yaml`:
 
@@ -185,7 +185,7 @@ When the allow-list is active:
 - The admission webhook rejects any new or updated `ScaledObject`/`ScaledJob` whose `spec.triggers[].type` is not in the list, with an error like `scaler type "kafka" is disabled on this KEDA instance (see --enabled-scalers)`.
 - At scaler build time, the operator emits the same error as a `KEDAScalerFailed` event on the owning resource (this catches existing objects that pre-date the allow-list).
 
-> ⚠️ **This flag is a runtime guard, not a build-time strip.** The disabled scaler's code (and any vulnerable vendor dependencies) is still compiled into the operator binary, so static SCA tools such as Trivy or Grype will continue to surface CVEs in those dependencies. Use this flag to reduce your runtime attack surface and to prevent users from creating new `ScaledObject`s for unwanted scaler types; build a custom image without the relevant scaler if you also need the vendor code removed.
+> ⚠️ **This flag is a runtime guard, not a build-time strip.** The disabled scaler's code is still compiled into the operator binary, so static SCA tools such as Trivy or Grype will continue to surface CVE's, if any exists, in those dependencies. Use this flag to reduce your runtime attack surface and to prevent users from creating new `ScaledObject`s for unwanted scaler types.
 
 ## Kubernetes Client Parameters
 
